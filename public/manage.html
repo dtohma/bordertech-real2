@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>BT-AI 管理画面</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<!-- ===== スタイル ===== -->
+<style>
+  /* ── カラーパレット ───────────────────────────── */
+  :root{
+    --c-primary:#5a2d8c;         /* 濃い紫（ボタン）        */
+    --c-primary-dark:#4a2375;
+    --c-primary-darker:#3a1b5e;
+    --c-accent:#0077cc;          /* リンクカラー           */
+    --c-bg:#f2f8ff;              /* ページ背景・淡いブルー */
+    --c-card:#ffffff;            /* カード背景            */
+    --c-border:#d0d8e5;          /* 枠線・薄ブルー        */
+  }
+
+  /* ── リセット & ベース ───────────────────────── */
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;
+       background:var(--c-bg);color:#333;line-height:1.5}
+  a{color:var(--c-accent);text-decoration:none}
+
+  /* ── レイアウト ───────────────────────────────── */
+  header{display:flex;align-items:center;gap:1rem;
+         padding:.75rem 1rem;background:var(--c-card);
+         border-bottom:1px solid var(--c-border);
+         box-shadow:0 2px 4px rgba(0,0,0,.04)}
+  header img{height:48px}
+  @media(max-width:600px){
+    header{flex-direction:column;text-align:center}
+    header img{height:40px}
+  }
+
+  main{max-width:860px;margin:2rem auto 4rem;padding:0 1rem}
+
+  /* ── フォーム ─────────────────────────────────── */
+  form{background:var(--c-card);padding:1.5rem 1.75rem;
+       border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  form p{display:flex;flex-wrap:wrap;align-items:center;margin:1rem 0}
+  form p > input,form p > select,form p > textarea{
+       flex:1 1 320px;margin-top:.5rem;padding:.5rem .75rem;
+       font-size:.95rem;border:1px solid var(--c-border);
+       border-radius:4px;background:#fff}
+  form p > textarea{resize:vertical;min-height:6rem}
+  form p > select{cursor:pointer}
+  form p label{font-weight:600;margin-right:.5rem}
+  .note{flex-basis:100%;font-size:.8rem;color:#777;margin-top:.25rem}
+
+  /* ── 画像プレビュー ───────────────────────────── */
+  .thumb{max-width:120px;max-height:120px;display:block;
+         margin:.5rem 0;border:1px solid var(--c-border);border-radius:4px}
+
+  /* ── ボタン ───────────────────────────────────── */
+  button{display:inline-block;padding:.75rem 1.75rem;font-size:1rem;
+         font-weight:600;color:#fff;background:var(--c-primary);
+         border:none;border-radius:6px;cursor:pointer;
+         transition:background .15s}
+  button:hover{background:var(--c-primary-dark)}
+  button:active{background:var(--c-primary-darker)}
+
+  /* ── テーブル（サーバー挿入エリア） ─────────────── */
+  table{width:100%;border-collapse:collapse;margin-top:2rem;font-size:.9rem}
+  th,td{padding:.5rem .75rem;border:1px solid var(--c-border);word-break:break-all}
+  th{background:#e9f2ff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fbff}
+</style>
+</head>
+
+<body>
+<header>
+  <!-- ★ 添付ロゴに差し替え。パスは実際の配置に合わせてください -->
+  <img src="/uploads/logo-bordertech.png" alt="BorderTech ロゴ">
+  <h2>BorderTECH AI-CHAT カスタムページ作成 / 編集</h2>
+</header>
+
+<main>
+<form id="editForm" action="/manage/save" method="post" enctype="multipart/form-data">
+
+  <p><label>URL&nbsp;ID（新規なら空）</label>
+     <input name="slug">
+     <span class="note">※このIDがURLの最後の部分になります。</span></p>
+
+  <p><label>タイトルタグ</label><input name="titleTag">
+     <span class="note">※HTMLの&nbsp;title&nbsp;tagです。</span></p>
+
+  <p><label>見出し（キャッチコピー）</label><input name="heading">
+     <span class="note">※ページ上部の説明です。</span></p>
+
+  <p><label>問い合わせ先リンク</label>
+     <input name="contact" value="https://www.bordertech.co.jp/contact/">
+     <span class="note">※問い合わせ先のリンク先を記入。</span></p>
+
+<p><label>自動ジャンプまでの秒数</label>
+   <input name="autoJumpSec" type="number" min="1" value="180">
+   <span class="note">※ページ表示後、ここで指定した秒数で自動的に問い合わせ先へジャンプします。</span>
+</p>
+
+
+  <p><label>デフォルトモデル</label>
+     <select name="model">
+       <option value="gpt-4o-realtime-preview-2024-12-17" selected>
+         gpt-4o-realtime-preview-2024-12-17</option>
+       <option value="gpt-4o-mini-realtime-preview-2024-12-17">
+         gpt-4o-mini-realtime-preview-2024-12-17</option>
+     </select>
+     <span class="note">※ChatGPTのモデルを選択。</span></p>
+
+  <p><label>デフォルト音声</label>
+     <select name="voice">
+       <option value="alloy">Alloy（中性的）</option>
+       <option value="ash">Ash（誠実な男性）</option>
+       <option value="ballad">Ballad（感情豊かな中性）</option>
+       <option value="coral">Coral（落ち着いた女性）</option>
+       <option value="echo">Echo（若い男性）</option>
+       <option value="sage" selected>Sage（若い女性）</option>
+       <option value="shimmer">Shimmer（ベテラン女性）</option>
+       <option value="verse">Verse（力強い中性）</option>
+     </select>
+     <span class="note">※初期の音声を選択。</span></p>
+
+  <p><label>性格初期プロンプト</label>
+     <textarea name="prompt" rows="4" cols="40">
+あなたはボーダーテックの多言語アシスタントです。お客様が日本語の時は日本語で答え、他の言語で話した時はその言語で答えること。元気いっぱいで感情的に明るく話して。
+     </textarea>
+     <span class="note">※最初の設定条件を記入。最大4096文字まで。</span></p>
+
+  <p><label>左上ロゴ画像</label>
+     <input type="file" name="logo" id="logoIn"><br>
+     <img id="logoPrev" class="thumb" style="display:none">
+     <input type="hidden" name="logoPrev" id="logoPrevVal"></p>
+
+  <p><label>オペレーター画像</label>
+     <input type="file" name="operator" id="opIn"><br>
+     <img id="opPrev" class="thumb" style="display:none">
+     <input type="hidden" name="opPrev" id="opPrevVal">
+     <span class="note">※中央に置く写真。人の画像が効果的です。</span></p>
+
+  <p><label>学習データ CSV</label>
+     <input type="file" name="placeCsv" accept=".csv"><br>
+     <span id="csvPrevView" class="note"></span>
+     <input type="hidden" name="csvPrev" id="csvPrevVal">
+     <span class="note">※列は「地域,施設,概要,電話番号」。UTF-8 / BOM 無し。</span></p>
+
+  <button>保存</button>
+</form>
+
+<hr>
+<!-- （ここにサーバが一覧テーブルを挿入） -->
+</main>
+
+<!-- ===== スクリプト ===== -->
+<script>
+/* 画像プレビュー */
+function bindPreview(inputId,imgId,hiddenId){
+  const inp=document.getElementById(inputId),
+        img=document.getElementById(imgId),
+        hid=document.getElementById(hiddenId);
+  inp.addEventListener('change',e=>{
+    if(!e.target.files.length){
+      img.style.display='none';hid.value='';return;
+    }
+    const url=URL.createObjectURL(e.target.files[0]);
+    img.src=url;img.style.display='block';hid.value='';
+  });
+}
+bindPreview('logoIn','logoPrev','logoPrevVal');
+bindPreview('opIn','opPrev','opPrevVal');
+
+/* 一覧テーブルの削除リンク */
+document.addEventListener('click',async e=>{
+  if(e.target.dataset.del){
+    if(!confirm('本当に削除しますか？')) return;
+    const slug=e.target.dataset.del;
+    const res=await fetch('/manage/delete?slug='+encodeURIComponent(slug));
+    if(res.ok) location.reload(); else alert('削除失敗');
+  }
+});
+
+/* CSV リンクに download を付与（拡張子が無い場合も強制） */
+document.addEventListener('DOMContentLoaded',()=>{
+  const link=document.querySelector('#csvPrevView a[href]');
+  if(link){
+    let fname=link.href.split('/').pop();
+    if(!/\\.csv$/i.test(fname)) fname+= '.csv';
+    link.setAttribute('download',fname);
+  }
+});
+</script>
+</body>
+</html>

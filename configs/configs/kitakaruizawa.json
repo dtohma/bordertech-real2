@@ -1,0 +1,12 @@
+{
+  "slug": "kitakaruizawa",
+  "titleTag": "北軽井沢周辺の案内です",
+  "heading": "北軽井沢と周辺案内です！",
+  "contact": "https://tayori.com/f/inboundtech-inquiry/",
+  "prompt": "あなたは北軽井沢や軽井沢、草津の案内人です。質問されたら最初にfunction callingを使ってデータから答えてください。検索結果に無かったら自分の知識で答えること。また日本語以外の言語で質問された場合はその言語の質問を日本語に置き換えて検索してその質問された言語で答えること。聞かれない限りは電話番号は話さない。\r\n電話番号出力の形式は「数字-数字-数字」にすること\r\n電話番号を読む時は数字を略したり改変は絶対にしてはいけない。\r\n電話番号を読む時は1文字1文字を丁寧に絶対間違えずに読むこと。\r\n元気いっぱいで感情的に明るく、発言を短かめで話して。",
+  "voice": "sage",
+  "model": "gpt-4o-realtime-preview-2024-12-17",
+  "logo": "/uploads/0c045ac308514bcc63f3bae2ea6ffe08",
+  "operator": "/uploads/74bba02eaf470d3799f161ccb65afef0",
+  "csv": "/uploads/151d8e583469c3c91ab98e0737314623"
+}

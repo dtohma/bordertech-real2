@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 音声チャット</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;display:flex;flex-direction:column;align-items:center}
+header{width:100%;padding:10px;background:#f8f8f8;display:flex;justify-content:space-between;align-items:center}
+.logo{height:50px}.contact{display:flex;align-items:center;text-decoration:none;color:#333}.contact img{height:30px;margin-right:5px}
+main{width:100%;max-width:800px;padding:20px;display:flex;flex-direction:column;align-items:center}
+textarea{width:100%;height:160px;padding:12px;margin-top:10px}
+button{width:100%;padding:40px;font-size:26px;background:#007bff;color:#fff;border:0;border-radius:8px;cursor:pointer;transition:background .15s}
+button.end{background:#d00;}
+button:hover{background:#0056b3}
+audio{width:100%;margin-top:20px}
+.footer{font-size:12px;color:#666;margin-top:10px;text-align:center}
+.operator-img{width:100%;max-width:600px;border-radius:8px;margin-bottom:15px}
+@media(max-width:600px){header{flex-direction:column}button{font-size:18px;padding:28px}}
+#debug{width:90%;max-width:600px;height:160px;overflow:auto;background:#f4f4f4;
+       border:1px solid #ccc;padding:8px;font-size:12px;white-space:pre-wrap}
+#telView{display:none;font-size:32px;font-weight:bold;color:#d00;margin:14px 0}
+#assistantText{display:none;width:100%;max-width:800px;border:1px solid #99f;background:#eef;
+               padding:10px;margin:10px 0;white-space:pre-wrap;font-size:18px}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/logo.jpg" class="logo" alt="ロゴ">
+  <h2>3分間 AI-Realtime 音声チャット</h2>
+  <a href="https://www.bordertech.co.jp/contact/" class="contact">
+    <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/hikari.jpg" alt="お問い合わせ">お問い合わせ
+  </a>
+</header>
+
+<main>
+  <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/ope001.png" class="operator-img" alt="オペレーター">
+  <button id="startBtn">会話を開始する</button>
+  <audio id="remoteAudio" autoplay controls></audio>
+
+  <div id="telView"></div>
+  <div id="assistantText"></div>
+
+  <label><strong>AI の性格・設定：</strong></label>
+  <textarea id="prompt">あなたは株式会社インバウンドテックの多言語アシスタントです。お客様が日本語の時は日本語で答え、他の言語で話した時はその言語で答えること。元気いっぱいで感情的に明るく話して。</textarea>
+
+  <label><strong>音声を選択：</strong></label>
+  <select id="voiceSelect">
+    <option value="alloy">Alloy（中性的）</option>
+    <option value="ash">Ash（誠実な男性）</option>
+    <option value="ballad">Ballad（感情豊かな中性）</option>
+    <option value="coral">Coral（落ち着いた女性）</option>
+    <option value="echo">Echo（若い男性）</option>
+    <option value="sage" selected>Sage（若い女性）</option>
+    <option value="shimmer">Shimmer（ベテラン女性）</option>
+    <option value="verse">Verse（力強い中性）</option>
+  </select>
+
+  <label><strong>マイクを選択：</strong></label>
+  <select id="micSelect"></select>
+</main>
+
+<div class="footer">©︎ BorderTech co.,Ltd All Rights Reserved</div>
+
+<script>
+function dbg(...args){
+  console.log(...args);
+  const el=document.getElementById("debug");
+  if(el){
+    el.textContent += args.map(a=>typeof a==="object"?JSON.stringify(a):String(a)).join(" ")+"\n";
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+const MODEL_NAME = "gpt-4o-mini-realtime-preview-2024-12-17";
+const CSV_URL    = "";
+
+let placeList = [];
+async function loadCsv(){
+  if(!CSV_URL) return;
+  try{
+    const txt=await (await fetch(CSV_URL)).text();
+    placeList = txt.trim().split(/\r?\n/).map(l=>{
+      const cols=[]; l.replace(/("([^"]|"")*"|[^,]*)(,|$)/g,(m,c)=>(cols.push(c.replace(/^"|"$/g,"").replace(/""/g,'"')), "" ));
+      const [region="",name="",desc="",tel=""] = cols;
+      return {region,name,desc,tel};
+    });
+    dbg("CSV loaded:",placeList.length,"rows");
+  }catch(e){ dbg("CSV load failed",e);}
+}
+
+document.addEventListener("DOMContentLoaded",async()=>{
+  await populateMicList();
+  await loadCsv();
+});
+
+async function populateMicList(){
+  const sel=document.getElementById("micSelect");
+  const ins=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="audioinput");
+  sel.innerHTML = ins.map((d,i)=>`<option value="${d.deviceId}">${d.label||"マイク"+(i+1)}</option>`).join("");
+  if(ins[0]) sel.value=ins[0].deviceId;
+}
+
+/* WebRTC / Realtime */
+let pc,dc,talkStart=0, sessionActive = false;
+const handledCalls=new Set();
+const remoteAudio=document.getElementById("remoteAudio");
+const telBox      =document.getElementById("telView");
+const assistantEl =document.getElementById("assistantText");
+let   textBuf     ="";
+
+/* 新しいボタンの挙動：トグル制御 */
+const btn = document.getElementById("startBtn");
+btn.onclick = async function() {
+  if (!sessionActive) {
+    // --- 会話開始 ---
+    btn.textContent = "会話を終了する";
+    btn.classList.add("end");
+    talkStart = Date.now();
+    sessionActive = true;
+    await startSession();
+  } else {
+    // --- 会話終了 ---
+    btn.textContent = "会話を開始する";
+    btn.classList.remove("end");
+    sessionActive = false;
+    // セッションの終了（API/DataChannel/WebRTC）
+    try { if (dc && dc.readyState === "open") dc.close(); } catch(e){}
+    try { if (pc && pc.connectionState !== "closed") pc.close(); } catch(e){}
+    // ログを送信
+    if (talkStart) {
+      navigator.sendBeacon("/log", new Blob([JSON.stringify({
+        duration: Date.now() - talkStart,
+        page: location.pathname,
+        ended: new Date().toISOString()
+      })], {type:"text/plain"}));
+      talkStart = 0;
+    }
+    // 必要なら画面リセット（音声停止など）
+    try { remoteAudio.srcObject = null; } catch(e){}
+    assistantEl.style.display = "none";
+    telBox.style.display = "none";
+    textBuf = "";
+  }
+};
+
+async function startSession(){
+  const prompt=document.getElementById("prompt").value;
+  const voice =document.getElementById("voiceSelect").value;
+  const micId =document.getElementById("micSelect").value;
+
+  dbg("=== NEW SESSION ===");
+  fetch("/log",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({instruction:prompt,page:location.pathname})});
+  talkStart=Date.now();
+
+  const {client_secret:{value:key}}=
+    await (await fetch(`/session?model=${encodeURIComponent(MODEL_NAME)}`)).json();
+
+  pc=new RTCPeerConnection();
+  pc.addEventListener("iceconnectionstatechange",()=>dbg("ICE:",pc.iceConnectionState));
+  pc.addEventListener("connectionstatechange",  ()=>dbg("PC:",pc.connectionState));
+
+  pc.ontrack=e=>{
+    if(!remoteAudio.srcObject){
+      remoteAudio.srcObject=e.streams[0];
+      remoteAudio.play().catch(err=>dbg("play err",err));
+    }
+  };
+
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:micId?{exact:micId}:undefined}});
+  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+  pc.addTransceiver("video",{direction:"sendonly"});
+
+  dc=pc.createDataChannel("oai-events");
+  dc.addEventListener("open",()=>dbg("DC open"));
+  dc.addEventListener("error",e=>dbg("DC error",e));
+  dc.addEventListener("close",()=>{
+    // セッションが閉じた場合も強制的にUIリセット
+    if(sessionActive){
+      btn.textContent = "会話を開始する";
+      btn.classList.remove("end");
+      sessionActive = false;
+      // ログ送信（ここで2重送信されても問題なし）
+      if (talkStart) {
+        navigator.sendBeacon("/log", new Blob([JSON.stringify({
+          duration: Date.now() - talkStart,
+          page: location.pathname,
+          ended: new Date().toISOString()
+        })], {type:"text/plain"}));
+        talkStart = 0;
+      }
+      try { remoteAudio.srcObject = null; } catch(e){}
+      assistantEl.style.display = "none";
+      telBox.style.display = "none";
+      textBuf = "";
+    }
+  });
+
+  await pc.setLocalDescription(await pc.createOffer());
+  const answer=await fetch(`https://api.openai.com/v1/realtime?model=${encodeURIComponent(MODEL_NAME)}`,
+      {method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/sdp"},body:pc.localDescription.sdp}
+    ).then(r=>r.text());
+  await pc.setRemoteDescription({type:"answer",sdp:answer});
+
+  dc.onopen=()=>{
+    const tools=[{type:"function",name:"search_places",description:"地域名や施設名及び概要を検索する",
+                  parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}];
+    dc.send(JSON.stringify({type:"session.update",session:{voice,instructions:prompt,temperature:0.7,tools,tool_choice:"auto"}}));
+    askFirstQuestion();
+  };
+
+  /* 受信 */
+  dc.onmessage=e=>{
+    const msg=JSON.parse(e.data||"{}");
+
+    if(msg.type==="response.audio_transcript.delta" && msg.delta){
+      textBuf += msg.delta;
+    }
+    if(msg.type==="response.delta" && msg.delta?.output){
+      msg.delta.output.forEach(o=>{ if(o.type==="text") textBuf += o.text; });
+    }
+    if(msg.type==="response.audio_transcript.done" || msg.type==="response.done"){
+      if(!textBuf && (msg.transcript||"").length){
+        textBuf = msg.transcript;
+      }
+      if(!textBuf && msg.response?.output){
+        textBuf = msg.response.output.filter(o=>o.type==="text").map(o=>o.text).join("");
+      }
+      if(textBuf){
+        assistantEl.textContent = textBuf.trim();
+        assistantEl.style.display="block";
+        const m = assistantEl.textContent.match(/\d{2,4}-\d{2,4}-\d{3,4}/);
+        if(m){
+          telBox.innerHTML = `<a href="tel:${m[0]}">${m[0]}</a>`;
+          telBox.style.display="block";
+        }else{
+          telBox.style.display="none";
+        }
+        dbg("ASSIST", assistantEl.textContent);
+        textBuf="";
+      }
+    }
+    const out=msg.response?.output?.[0];
+    dbg("function_call 受信:", JSON.stringify(out, null, 2));
+    if(msg.type!=="response.done" || !out || out.type!=="function_call") return;
+    if(out.name!=="search_places" || handledCalls.has(out.call_id)) return;
+    handledCalls.add(out.call_id);
+    const {query=""}=JSON.parse(out.arguments||"{}");
+    dbg("search_places query:", query);
+    const terms=query.toLowerCase().split(/\s+/).filter(Boolean);
+    const hits =placeList.filter(p=>{
+      const hay=`${p.region} ${p.name} ${p.desc}`.toLowerCase();
+      return terms.some(t=>hay.includes(t));
+    });
+    dbg("search_places hits:", hits);
+    if(/電話|tel|番号/i.test(query) && hits[0]?.tel){
+      telBox.innerHTML = `<a href="tel:${hits[0].tel}">${hits[0].tel}</a>`;
+      telBox.style.display="block";
+    }
+    const answer={result: hits.length
+      ? hits.map(p=>`${p.region}「${p.name}」…${p.desc}　電話番号（${p.tel||"なし"}）`).join("\n")
+      : "該当データが見つかりませんでした。"};
+    dbg("function_call_output:", answer);
+    dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"function_call_output",call_id:out.call_id,output:JSON.stringify(answer)}}));
+    dc.send(JSON.stringify({type:"response.create"}));
+  };
+}
+
+function askFirstQuestion(){
+  if(dc.readyState!=="open") return setTimeout(askFirstQuestion,100);
+  dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"message",role:"user",content:[{type:"input_text",text:"こんにちは"}]}}));
+  dc.send(JSON.stringify({type:"response.create"}));
+}
+
+/* beforeunload でのログ送信も残す（保険として）*/
+addEventListener("beforeunload",()=>{ if(!talkStart) return;
+  navigator.sendBeacon("/log",new Blob([JSON.stringify({duration:Date.now()-talkStart,page:location.pathname})],{type:"text/plain"}));});
+
+setTimeout(() => location.href = (window.CONTACT_URL || "https://tayori.com/f/inboundtech-inquiry/"), (window.AUTO_JUMP_SEC || 180) * 1000);
+
+window.addEventListener("error",e=>dbg("Window error:",e.error||e));
+window.addEventListener("unhandledrejection",e=>dbg("Promise rejection:",e.reason));
+</script>
+</body>
+</html>

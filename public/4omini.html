@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI音声チャット（音声・マイク選択可）</title>
+
+  <!-- CSS -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column;
+      align-items: center;
+    }
+    header {
+      width: 100%; padding: 10px; background: #f8f8f8;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .logo { height: 50px; }
+    .contact {
+      display: flex; align-items: center; text-decoration: none; color: #333;
+    }
+    .contact img { height: 30px; margin-right: 5px; }
+    main {
+      width: 100%; max-width: 600px; padding: 20px;
+      display: flex; flex-direction: column; align-items: center;
+    }
+textarea {
+  width: 100%;
+  max-width: 600px;
+  height: 160px;  /* 元の100pxから160pxへ広げる */
+  padding: 12px;
+  font-size: 16px;
+  margin-top: 10px;
+}
+button {
+  width: 100%;
+  padding: 40px; /* 縦幅を増やす */
+  font-size: 28px; /* 文字サイズを大きく */
+  background-color: #007BFF; /* 青色 */
+  color: #FFFFFF; /* 白文字 */
+  border: none;
+  border-radius: 8px; /* 角を少し丸く */
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3; /* ホバー時に少し濃い青に */
+}
+    audio { width: 100%; margin-top: 20px; }
+    .notice, .footer {
+      width: 100%; text-align: center; color: #666;
+      font-size: 12px; margin-top: 10px;
+    }
+    @media (max-width: 600px) {
+      header { flex-direction: column; }
+      header h2 { font-size: 18px; }
+      button { font-size: 16px; }
+    }
+.operator-img {
+  width: 100%;
+  max-width: 400px; /* 最大幅400pxまで調整可能 */
+  height: auto;
+  border-radius: 8px; /* 少し角を丸める */
+  margin-bottom: 15px; /* ボタンとの間隔を調整 */
+}
+
+  </style>
+</head>
+
+<body>
+  <header>
+    <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/logo.jpg" alt="ロゴ" class="logo">
+    <h2>3分間AI-Realtime音声チャット</h2>
+    <a href="https://tayori.com/f/inboundtech-inquiry/" class="contact">
+      <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/hikari.jpg" alt="お問い合わせ">
+      お問い合わせ
+    </a>
+  </header>
+
+  <main>
+<!-- オペレーター画像 -->
+<img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/ope001.png"
+     alt="オペレーター画像" class="operator-img">
+
+    <button onclick="startConversation()">会話を開始する</button>
+    <audio id="remoteAudio" autoplay controls></audio>
+
+    <label><strong>AIの性格・設定・話し方（感情含）：</strong></label>
+    <textarea id="prompt">あなたは株式会社インバウンドテックの多言語アシスタントです。お客様が日本語の時は日本語で答え、他の言語で話した時はその言語で答えること。元気いっぱいで感情的に明るく話して。</textarea>
+
+    <label><strong>音声を選択：</strong></label>
+    <select id="voiceSelect">
+      <option value="alloy">Alloy（中性的）</option>
+      <option value="ash">Ash（誠実な男性）</option>
+      <option value="ballad">Ballad（感情豊かな中性）</option>
+      <option value="coral">Coral（落ち着いた女性）</option>
+      <option value="echo">Echo（若い男性）</option>
+      <option value="sage" selected>Sage（若い女性）</option>
+      <option value="shimmer">Shimmer（ベテラン女性）</option>
+      <option value="verse">Verse（力強い中性）</option>
+    </select>
+    <label><strong>マイクを選択：</strong></label>
+    <select id="micSelect"></select>
+  </main>
+    <a href="https://ibt.livecall.jp/#/">
+  <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/opere002.png" alt="オペレーター画像" class="operator-img">
+    </a>
+
+    ※本サイトは大量利用を制御するため、3分後にお問い合わせフォームに遷移します。生成AI開発のご用命はフォームから。
+  </div>
+  <div class="footer">
+    Copyright © Inbound Tech Inc. All rights reserved.
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    let pc, dc;
+
+    document.addEventListener("DOMContentLoaded", populateMicList);
+
+    async function populateMicList() {
+      const micSelect = document.getElementById('micSelect');
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(d => d.kind === 'audioinput');
+
+      micSelect.innerHTML = audioInputs.map((device, i) =>
+        `<option value="${device.deviceId}">${device.label || 'マイク' + (i + 1)}</option>`
+      ).join('');
+
+      if (audioInputs[0]) micSelect.value = audioInputs[0].deviceId;
+    }
+
+    async function startConversation() {
+      const userPrompt = document.getElementById("prompt").value;
+      const voiceChoice = document.getElementById("voiceSelect").value;
+      const micId = document.getElementById("micSelect").value;
+
+      await fetch('/log', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({instruction: userPrompt})
+      });
+
+      const sessionRes = await fetch("/session");
+      const {client_secret: {value: ephemeralKey}} = await sessionRes.json();
+
+      pc = new RTCPeerConnection();
+      pc.ontrack = e => remoteAudio.srcObject = e.streams[0];
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: micId } });
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      } catch (e) {
+        alert('マイクが取得できませんでした。');
+        return;
+      }
+
+      pc.addTransceiver('video', { direction: 'sendonly' });
+
+      dc = pc.createDataChannel("oai-events");
+      dc.onopen = () => {
+        dc.send(JSON.stringify({
+          type: "session.update",
+          session: { voice: voiceChoice, instructions: userPrompt, temperature: 0.7 }
+        }));
+        setTimeout(sendInitialMessage, 1000);
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResponse = await fetch(
+        'https://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview-2024-12-17', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${ephemeralKey}`,
+            'Content-Type': 'application/sdp'
+          },
+          body: offer.sdp
+      });
+
+      const answerSdp = await sdpResponse.text();
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerSdp }));
+    }
+
+    function sendInitialMessage() {
+      dc.send(JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["text", "audio"],
+          instructions: "何かお困りのことはありますか？"
+        }
+      }));
+    }
+
+    setTimeout(() => {
+      window.location.href = 'https://tayori.com/f/inboundtech-inquiry/';
+    }, 180000);
+  </script>
+</body>
+
+</html>

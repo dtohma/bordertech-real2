@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI通訳チャット</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 10px;
+      background-color: #f8f8f8;
+    }
+    .logo {
+      height: 50px;
+    }
+    .contact {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      color: #333;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .contact img {
+      height: 30px;
+      margin-right: 5px;
+    }
+    main {
+      padding: 20px;
+    }
+    textarea {
+      width: 100%;
+      max-width: 600px;
+      height: 100px;
+    }
+    select, button {
+      margin-top: 10px;
+    }
+    .footer {
+      text-align: center;
+      padding: 10px;
+      background-color: #f1f1f1;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+    }
+    .notice {
+      text-align: left;
+      font-size: 12px;
+      margin-bottom: 5px;
+      color: #666;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <img src="https://recovision.sakura.ne.jp/logo-original.svg" alt="ロゴ" class="logo">
+      <h2 style="display: inline-block; vertical-align: middle;">生成AI-RealtimeAPI音声チャット</h2>
+    </div>
+    <a href="https://active-rt.com/contact/" class="contact">
+      <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/hikari.jpg" alt="お問い合わせ">
+      お問い合わせ
+    </a>
+  </header>
+  <main>
+    <h3>instruction: AIの性格・設定・話し方（感情含）を入力してください：</h3>
+    <textarea id="prompt">あなたは多言語通訳です。お客様が日本語の時は日本語で答え、他の言語で話した時はその言語で答えること。使える言語は「日本語」「台湾語」「韓国語」「英語」「フランス語」「ベトナム語」「フィンランド語」です。元気いっぱいで感情的に明るく話して。</textarea><br><br>
+
+    <label for="voiceSelect">音声を選択：</label>
+    <select id="voiceSelect">
+      <option value="alloy">Alloy中性的</option>
+      <option value="ash">Ash誠実な男性</option>
+      <option value="ballad">Ballad感情豊か中性</option>
+      <option value="coral">Coral落ち着いた女性</option>
+      <option value="echo">Echo若い男性</option>
+      <option value="sage" selected>Sage若い女性</option>
+      <option value="shimmer">Shimmerベテラン女性</option>
+      <option value="verse">Verse力強い中性</option>
+    </select><br><br>
+
+    <label for="micSelect">マイクを選択：</label>
+    <select id="micSelect"></select><br><br>
+
+    <button onclick="startConversation()">会話を開始する</button>
+
+    <audio id="remoteAudio" autoplay controls></audio>
+  </main>
+
+<script>
+let pc, dc;
+
+async function populateMicList() {
+  const micSelect = document.getElementById('micSelect');
+  micSelect.innerHTML = '';
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const audioInputs = devices.filter(device => device.kind === 'audioinput');
+
+  audioInputs.forEach((device, index) => {
+    const option = document.createElement('option');
+    option.value = device.deviceId;
+    option.text = device.label || `マイク (${index+1})`;
+    micSelect.appendChild(option);
+  });
+
+  if(audioInputs[0]) micSelect.value = audioInputs[0].deviceId;
+}
+
+populateMicList();
+
+async function startConversation() {
+  const userPrompt = document.getElementById("prompt").value;
+  const voiceChoice = document.getElementById("voiceSelect").value;
+  const micId = document.getElementById("micSelect").value;
+
+  fetch('/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ instruction: userPrompt })
+  }).catch(err => console.error('ログ送信エラー:', err));
+
+  const sessionRes = await fetch("/session");
+  const { client_secret: { value: ephemeralKey } } = await sessionRes.json();
+
+  pc = new RTCPeerConnection();
+
+  pc.ontrack = event => {
+    document.getElementById('remoteAudio').srcObject = event.streams[0];
+  };
+
+  let constraints = micId ? { audio: { deviceId: { ideal: micId } } } : { audio: true };
+
+  try {
+    const localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  } catch (error) {
+    alert('マイクへのアクセスに失敗しました。マイクを許可してください。');
+    return;
+  }
+
+  pc.addTransceiver('video', { direction: 'sendonly' });
+
+  dc = pc.createDataChannel("oai-events");
+  dc.onopen = () => {
+    dc.send(JSON.stringify({
+      type: "session.update",
+      session: {
+        voice: voiceChoice,
+        instructions: userPrompt,
+        temperature: 0.7
+      }
+    }));
+
+    setTimeout(sendInitialMessage, 1000);
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const sdpResponse = await fetch(
+    `https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${ephemeralKey}`,
+        "Content-Type": "application/sdp"
+      },
+      body: offer.sdp
+  });
+
+  const answerSdp = await sdpResponse.text();
+  await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: answerSdp }));
+}
+
+function sendInitialMessage() {
+  dc.send(JSON.stringify({
+    type: "response.create",
+    response: {
+      modalities: ["text", "audio"],
+      instructions: "何かお困りのことはありますか？"
+    }
+  }));
+}
+
+setTimeout(() => {
+  window.location.href = 'https://active-rt.com/contact/';
+}, 180000);
+</script>
+
+<div class="notice">
+  ※本サイトは大量利用を制御するために３分後にお問い合わせフォームに遷移します。生成AI開発のご用命はフォームから。
+</div>
+<div class="footer">
+  Copyright c Active RETECH Inc. All rights reserved.
+</div>
+</body>
+</html>

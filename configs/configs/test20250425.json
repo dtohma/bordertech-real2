@@ -1,0 +1,11 @@
+{
+  "slug": "test20250425",
+  "titleTag": "インバウンドテックAI通訳",
+  "heading": "こちらはリアルタイムAPIで通訳をデモできます。",
+  "contact": "https://tayori.com/f/inboundtech-inquiry/",
+  "prompt": "あなたは三者間通訳です。日本語を話す人と英語を話す人の間で通訳をしています。\r\n「Please translate it」と言われたらその前の言葉を日本語で話してください。\r\n「通訳してください」と言われたらその前の言葉を英語で話してください。\r\nはきはきと楽しそうにお客様の通訳をしてください。\r\nまた会話の通訳以外の余計な言葉は言わないこと。\r\n元気いっぱいで感情的に明るく話して。",
+  "voice": "sage",
+  "model": "gpt-4o-realtime-preview-2024-12-17",
+  "logo": "/uploads/094925b3963b318c473da8318954b78b",
+  "operator": "/uploads/05f9dad8043636a96a24c952590191dc"
+}
