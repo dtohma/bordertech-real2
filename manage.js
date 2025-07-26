@@ -229,7 +229,26 @@ export default function addManageRoutes(app) {
   });
 
 /* ────────────────────────────────────────────
-  6. カスタムページ表示
+  6. ログダウンロード
+───────────────────────────────────────────── */
+  app.get("/manage/logs", async (req,res)=>{
+    try{
+      const fpath = path.join(process.cwd(), "conversation_transcripts.jsonl");
+      await fs.access(fpath);
+      res.download(fpath, "conversation_transcripts.jsonl", err => {
+        if(err) {
+          console.error("log download error", err);
+          res.status(500).send("fail");
+        }
+      });
+    }catch(e){
+      console.warn("log file missing", e);
+      res.status(404).send("not found");
+    }
+  });
+
+/* ────────────────────────────────────────────
+  7. カスタムページ表示
 ───────────────────────────────────────────── */
   app.get("/:slug", async (req,res,next)=>{
     try{
