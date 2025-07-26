@@ -41,7 +41,7 @@ app.post("/log",(req,res)=>{
     try { body = JSON.parse(body); } catch { body = {}; }
   }
 
-  const instruction = body.instruction || "なし";
+  const instruction = (body.instruction || "なし").replace(/\r?\n/g, " ");
   const duration    = body.duration    || 0;              // ★追加（ms）
   const userIP      = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const page        = body.page || req.get("referer") || "-";
