@@ -191,7 +191,7 @@ export default function addManageRoutes(app) {
           contact :(req.body.contact ||"").trim(),
           prompt  :(req.body.prompt  ||"").trim(),
           voice   :(req.body.voice   ||"sage").trim(),
-          model   :(req.body.model   ||"gpt-4o-realtime-preview-2024-12-17").trim(),
+          model   :(req.body.model   ||"gpt-4o-realtime-preview-2025-06-03").trim(),
           logo    : req.files?.logo
                       ? req.files.logo[0].path.replace("public","")
                       : req.body.logoPrev || "",
