@@ -104,6 +104,7 @@ async function populateMicList(){
 
 /* WebRTC / Realtime */
 let pc,dc,talkStart=0, sessionActive = false;
+let conversation = [];
 const handledCalls=new Set();
 const remoteAudio=document.getElementById("remoteAudio");
 const telBox      =document.getElementById("telView");
@@ -133,9 +134,11 @@ btn.onclick = async function() {
       navigator.sendBeacon("/log", new Blob([JSON.stringify({
         duration: Date.now() - talkStart,
         page: location.pathname,
-        ended: new Date().toISOString()
+        ended: new Date().toISOString(),
+        conversation
       })], {type:"text/plain"}));
       talkStart = 0;
+      conversation = [];
     }
     // 必要なら画面リセット（音声停止など）
     try { remoteAudio.srcObject = null; } catch(e){}
@@ -187,9 +190,11 @@ async function startSession(){
         navigator.sendBeacon("/log", new Blob([JSON.stringify({
           duration: Date.now() - talkStart,
           page: location.pathname,
-          ended: new Date().toISOString()
+          ended: new Date().toISOString(),
+          conversation
         })], {type:"text/plain"}));
         talkStart = 0;
+        conversation = [];
       }
       try { remoteAudio.srcObject = null; } catch(e){}
       assistantEl.style.display = "none";
@@ -239,6 +244,7 @@ async function startSession(){
           telBox.style.display="none";
         }
         dbg("ASSIST", assistantEl.textContent);
+        conversation.push({role:"assistant",content:assistantEl.textContent});
         textBuf="";
       }
     }
@@ -270,13 +276,16 @@ async function startSession(){
 
 function askFirstQuestion(){
   if(dc.readyState!=="open") return setTimeout(askFirstQuestion,100);
+  conversation.push({role:"user",content:"こんにちは"});
   dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"message",role:"user",content:[{type:"input_text",text:"こんにちは"}]}}));
   dc.send(JSON.stringify({type:"response.create"}));
 }
 
 /* beforeunload でのログ送信も残す（保険として）*/
 addEventListener("beforeunload",()=>{ if(!talkStart) return;
-  navigator.sendBeacon("/log",new Blob([JSON.stringify({duration:Date.now()-talkStart,page:location.pathname})],{type:"text/plain"}));});
+  navigator.sendBeacon("/log",new Blob([JSON.stringify({duration:Date.now()-talkStart,page:location.pathname,conversation})],{type:"text/plain"}));
+  conversation = [];
+});
 
 setTimeout(() => location.href = (window.CONTACT_URL || "https://tayori.com/f/inboundtech-inquiry/"), (window.AUTO_JUMP_SEC || 180) * 1000);
 
