@@ -18,7 +18,7 @@ app.use(express.json());
 
 /* ---------- 1. Ephemeral キー取得 ---------- */
 app.get("/session", async (req, res) => {
-  const model = req.query.model || "gpt-4o-realtime-preview-2024-12-17";
+  const model = req.query.model || "gpt-4o-realtime-preview-2025-06-03";
   try {
     const r = await fetch("https://api.openai.com/v1/realtime/sessions",{
       method :"POST",
