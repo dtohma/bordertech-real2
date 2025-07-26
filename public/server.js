@@ -46,6 +46,7 @@ app.post("/log",(req,res)=>{
   const userIP      = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const page        = body.page || req.get("referer") || "-";
   const timestamp   = new Date().toISOString();
+  const conversation= Array.isArray(body.conversation) ? body.conversation : [];
 
 const logEntry = `${timestamp}\t${page}\t${userIP}\t${duration}\t${instruction}\n`;
   fs.appendFile("conversation_logs.txt",logEntry,err=>{
@@ -53,7 +54,11 @@ const logEntry = `${timestamp}\t${page}\t${userIP}\t${duration}\t${instruction}\
       console.error("ログ書き込みエラー:",err);
       return res.status(500).send("Error logging data");
     }
-    res.sendStatus(200);
+    const jsonLine = JSON.stringify({timestamp,page,duration,conversation})+"\n";
+    fs.appendFile("conversation_transcripts.jsonl",jsonLine,err2=>{
+      if(err2) console.error("transcript write error",err2);
+      res.sendStatus(200);
+    });
   });
 });
 
