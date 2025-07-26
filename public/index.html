@@ -30,22 +30,22 @@ audio{width:100%;margin-top:20px}
   <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/logo.jpg" class="logo" alt="ロゴ">
   <h2>3分間 AI-Realtime 音声チャット</h2>
   <a href="https://www.bordertech.co.jp/contact/" class="contact">
-    <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/hikari.jpg" alt="お問い合わせ">お問い合わせ
+    <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/hikari.jpg" alt="Contact">Contact
   </a>
 </header>
 
 <main>
   <img src="https://recovision.sakura.ne.jp/20250331-gpt-tts/ope001.png" class="operator-img" alt="オペレーター">
-  <button id="startBtn">会話を開始する</button>
+  <button id="startBtn">Start conversation</button>
   <audio id="remoteAudio" autoplay controls></audio>
 
   <div id="telView"></div>
   <div id="assistantText"></div>
 
-  <label><strong>AI の性格・設定：</strong></label>
+  <label><strong>AI personality and settings:</strong></label>
   <textarea id="prompt">あなたは株式会社インバウンドテックの多言語アシスタントです。お客様が日本語の時は日本語で答え、他の言語で話した時はその言語で答えること。元気いっぱいで感情的に明るく話して。</textarea>
 
-  <label><strong>音声を選択：</strong></label>
+  <label><strong>Select voice:</strong></label>
   <select id="voiceSelect">
     <option value="alloy">Alloy（中性的）</option>
     <option value="ash">Ash（誠実な男性）</option>
@@ -57,7 +57,7 @@ audio{width:100%;margin-top:20px}
     <option value="verse">Verse（力強い中性）</option>
   </select>
 
-  <label><strong>マイクを選択：</strong></label>
+  <label><strong>Select microphone:</strong></label>
   <select id="micSelect"></select>
 </main>
 
@@ -116,14 +116,14 @@ const btn = document.getElementById("startBtn");
 btn.onclick = async function() {
   if (!sessionActive) {
     // --- 会話開始 ---
-    btn.textContent = "会話を終了する";
+    btn.textContent = "End conversation";
     btn.classList.add("end");
     talkStart = Date.now();
     sessionActive = true;
     await startSession();
   } else {
     // --- 会話終了 ---
-    btn.textContent = "会話を開始する";
+    btn.textContent = "Start conversation";
     btn.classList.remove("end");
     sessionActive = false;
     // セッションの終了（API/DataChannel/WebRTC）
@@ -182,7 +182,7 @@ async function startSession(){
   dc.addEventListener("close",()=>{
     // セッションが閉じた場合も強制的にUIリセット
     if(sessionActive){
-      btn.textContent = "会話を開始する";
+      btn.textContent = "Start conversation";
       btn.classList.remove("end");
       sessionActive = false;
       // ログ送信（ここで2重送信されても問題なし）
