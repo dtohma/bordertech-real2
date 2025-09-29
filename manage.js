@@ -44,9 +44,14 @@ export default function addManageRoutes(app) {
             .replace('<input name="slug">', `<input name="slug" value="${cfg.slug}">`)
             .replace('<input name="titleTag">', `<input name="titleTag" value="${cfg.titleTag}">`)
             .replace('<input name="heading">', `<input name="heading" value="${cfg.heading}">`)
+            .replace('<input name="chatLabel">', `<input name="chatLabel" value="${cfg.chatLabel ?? ""}">`)
+            .replace(
+              '<input type="hidden" name="chatLabelPrev" id="chatLabelPrev">',
+              `<input type="hidden" name="chatLabelPrev" id="chatLabelPrev" value="${cfg.chatLabel ?? ""}">`
+            )
             .replace(/name="contact"[^>]+>/, `name="contact" value="${cfg.contact}">`)
             // ▼ 自動ジャンプ秒数を反映
-            .replace('<input name="autoJumpSec" type="number" min="1" value="180">', 
+            .replace('<input name="autoJumpSec" type="number" min="1" value="180">',
                      `<input name="autoJumpSec" type="number" min="1" value="${cfg.autoJumpSec || 180}">`)
             .replace(/<textarea name="prompt"[\s\S]*?<\/textarea>/,
                      `<textarea name="prompt" rows="4" cols="40">${cfg.prompt}</textarea>`)
@@ -190,6 +195,7 @@ export default function addManageRoutes(app) {
           heading :(req.body.heading ||"").trim(),
           contact :(req.body.contact ||"").trim(),
           prompt  :(req.body.prompt  ||"").trim(),
+          chatLabel:(req.body.chatLabel ?? req.body.chatLabelPrev ?? "").trim(),
           voice   :(req.body.voice   ||"sage").trim(),
           model   :(req.body.model   ||"gpt-4o-realtime-preview-2025-06-03").trim(),
           logo    : req.files?.logo
@@ -255,10 +261,13 @@ export default function addManageRoutes(app) {
       const cfg = JSON.parse(
         await fs.readFile(`configs/${req.params.slug}.json`, "utf8")
       );
+      const chatLabel = (cfg.chatLabel ?? "").trim();
+      const headingText = chatLabel || cfg.heading || "3分間 AI-Realtime 音声チャット";
       let html = await fs.readFile("public/index.html", "utf8");
       html = html
         .replace(/<title>.*?<\/title>/, `<title>${cfg.titleTag}</title>`)
-        .replace(/<h2>.*?<\/h2>/, `<h2>${cfg.heading}</h2>`)
+        .replace(/<h2[^>]*data-role="chat-heading"[^>]*>[\s\S]*?<\/h2>/,
+                 `<h2 data-role="chat-heading">${headingText}</h2>`)
         .replace(/src="[^"]*logo[^"]*"/, `src="${cfg.logo}"`)
         // ② オペレーター画像 ― class="operator-img" の <img> タグを丸ごと置換
         .replace(/<img[^>]+class="operator-img"[^>]*>/,
